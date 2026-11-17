@@ -1,143 +1,118 @@
 #include <iostream>
 #include <string>
-#include <vector>
-#include <algorithm>
-#include <cctype>
 using namespace std;
 
-struct WordNode {
-    string word;
-    int count;
-    WordNode* left;
-    WordNode* right;
-
-    WordNode(string w) {
-        word = w;
-        count = 1;
-        left = NULL;
-        right = NULL;
-    }
+struct Operation {
+    char type;
+    int  value;
+    string name;
 };
 
-class WordBST {
-public:
-    WordNode* root;
-    int totalWords;
-    int uniqueWords;
-
-    WordBST() {
-        root = NULL;
-        totalWords = 0;
-        uniqueWords = 0;
-    }
-
-    // lowercase + strip non-letters
-    string cleanWord(string w) {
-        string result = "";
-        for (int i = 0; i < (int)w.size(); i++) {
-            char c = w[i];
-            if (isalpha(c))
-                result += tolower(c);
-        }
-        return result;
-    }
-
-    WordNode* insert(WordNode* node, string w) {
-        if (node == NULL) {
-            uniqueWords++;
-            return new WordNode(w);
-        }
-
-        if (w < node->word)
-            node->left = insert(node->left, w);
-        else if (w > node->word)
-            node->right = insert(node->right, w);
-        else
-            node->count++;
-
-        return node;
-    }
-
-    void insert(string w) {
-        totalWords++;
-        root = insert(root, w);
-    }
-
-    void displayAlphabetical(WordNode* node) {
-        if (node == NULL) return;
-        displayAlphabetical(node->left);
-        cout << node->word << " : " << node->count << endl;
-        displayAlphabetical(node->right);
-    }
-
-    void collectNodes(WordNode* node, vector<WordNode*>& list) {
-        if (node == NULL) return;
-        collectNodes(node->left, list);
-        list.push_back(node);
-        collectNodes(node->right, list);
-    }
-
-    void displayByFrequency() {
-        vector<WordNode*> list;
-        collectNodes(root, list);
-
-        sort(list.begin(), list.end(), [](WordNode* a, WordNode* b) {
-            return a->count > b->count;
-        });
-
-        for (int i = 0; i < (int)list.size(); i++)
-            cout << list[i]->word << " : " << list[i]->count << endl;
-    }
-
-    void findMostFrequentWord() {
-        vector<WordNode*> list;
-        collectNodes(root, list);
-
-        if (list.empty()) return;
-
-        int maxCount = 0;
-        for (int i = 0; i < (int)list.size(); i++)
-            if (list[i]->count > maxCount)
-                maxCount = list[i]->count;
-
-        cout << "Most frequent word(s) [count = " << maxCount << "]: ";
-        for (int i = 0; i < (int)list.size(); i++)
-            if (list[i]->count == maxCount)
-                cout << list[i]->word << " ";
-        cout << endl;
-    }
+struct OpNode {
+    string opName;
+    OpNode* next;
 };
+
+void pushOp(OpNode*& top, string name) {
+    OpNode* n = new OpNode;
+    n->opName = name;
+    n->next = top;
+    top = n;
+}
+
+void popOp(OpNode*& top) {
+    if (top == NULL) return;
+    OpNode* temp = top;
+    top = top->next;
+    delete temp;
+}
+
+void printStack(OpNode* top) {
+    if (top == NULL) { cout << "(empty)"; return; }
+    string buf[50];
+    int cnt = 0;
+    OpNode* p = top;
+    while (p != NULL && cnt < 50) {
+        buf[cnt++] = p->opName;
+        p = p->next;
+    }
+    for (int i = cnt - 1; i >= 0; i--) {
+        cout << buf[i];
+        if (i > 0) cout << " -> ";
+    }
+}
+
+void findMacros(int cur, int target, int stepsLeft, int Mmax,
+                Operation ops[], int nOps,
+                OpNode*& stackTop, int& solutionNo, bool& found) {
+
+    if (cur == target) {
+        solutionNo++;
+        cout << "  Solution " << solutionNo << ": ";
+        printStack(stackTop);
+        cout << "\n";
+        found = true;
+        return;
+    }
+
+    if (stepsLeft == 0) return;
+
+    for (int i = 0; i < nOps; i++) {
+        int next = cur;
+        bool valid = true;
+
+        switch (ops[i].type) {
+            case '+': next = cur + ops[i].value; break;
+            case '-': next = cur - ops[i].value; break;
+            case '*': next = cur * ops[i].value; break;
+            case '/':
+                if (ops[i].value == 0) { valid = false; break; }
+                next = cur / ops[i].value;
+                break;
+        }
+
+        if (!valid) continue;
+        if (next < 0) continue;
+        if (next > Mmax) continue;
+
+        pushOp(stackTop, ops[i].name);
+        findMacros(next, target, stepsLeft - 1, Mmax,
+                   ops, nOps, stackTop, solutionNo, found);
+        popOp(stackTop);
+    }
+}
 
 int main() {
-    string paragraph = "the quick brown fox jumps over the lazy dog. The fox is quick and smart.";
+    cout << "===== TASK 2: IDE Undo/Redo Macro Synthesizer =====\n";
 
-    WordBST tree;
+    int Sstart = 5;
+    int Starget = 20;
+    int K = 4;
+    int Mmax = 100;
 
-    string current = "";
-    for (int i = 0; i <= (int)paragraph.size(); i++) {
-        if (i == (int)paragraph.size() || paragraph[i] == ' ') {
-            if (!current.empty()) {
-                string cleaned = tree.cleanWord(current);
-                if (!cleaned.empty())
-                    tree.insert(cleaned);
-                current = "";
-            }
-        } else {
-            current += paragraph[i];
-        }
+    Operation ops[4] = {
+        {'+', 3, "+3"},
+        {'*', 2, "*2"},
+        {'-', 5, "-5"},
+        {'/', 2, "/2"}
+    };
+    int nOps = 4;
+
+    cout << "Start = " << Sstart << ", Target = " << Starget
+         << ", Max steps = " << K << ", Overflow bound = " << Mmax << "\n";
+    cout << "Allowed ops: +3, *2, -5, /2\n\n";
+
+    OpNode* stackTop = NULL;
+    int solutionNo = 0;
+    bool found = false;
+
+    findMacros(Sstart, Starget, K, Mmax, ops, nOps, stackTop, solutionNo, found);
+
+    if (!found) {
+        cout << "No valid macro sequence found.\n";
+    } else {
+        cout << "\nTotal solutions found: " << solutionNo << "\n";
     }
-
-    cout << "Alphabetical order:\n";
-    tree.displayAlphabetical(tree.root);
-
-    cout << "\nSorted by frequency (high to low):\n";
-    tree.displayByFrequency();
-
-    cout << "\n";
-    tree.findMostFrequentWord();
-
-    cout << "\nTotal unique words: " << tree.uniqueWords << endl;
-    cout << "Total word count:   " << tree.totalWords << endl;
 
     return 0;
 }

@@ -1,150 +1,130 @@
 #include <iostream>
-#include <string>
-#include <vector>
 using namespace std;
 
-class StarSystem {
-public:
-    int system_id;
-    string name;
-    int num_planets;
-    float x, y, z;
-    bool is_habitable;
-
-    StarSystem(int id, string n, int planets, float px, float py, float pz, bool hab) {
-        system_id = id;
-        name = n;
-        num_planets = planets;
-        x = px; y = py; z = pz;
-        is_habitable = hab;
-    }
+struct Service {
+    int id;
+    int cost;
+    Service* left;
+    Service* right;
 };
 
-class TravelRoute {
-public:
-    float travel_cost;
-
-    TravelRoute() { travel_cost = 0.0f; }
-    TravelRoute(float c) { travel_cost = c; }
-};
-
-class Galaxy {
-public:
-    struct TreeNode {
-        StarSystem* system;
-        vector<TreeNode*> children;
-    };
-
-    TreeNode* root;
-    int M;
-
-    Galaxy(int m) {
-        M = m;
-        root = NULL;
+Service* insertBST(Service* root, int id, int cost) {
+    if (root == NULL) {
+        Service* n = new Service;
+        n->id = id;
+        n->cost = cost;
+        n->left = n->right = NULL;
+        return n;
     }
+    if (cost < root->cost)
+        root->left = insertBST(root->left, id, cost);
+    else
+        root->right = insertBST(root->right, id, cost);
+    return root;
+}
 
-    Galaxy(int m, StarSystem* rootSystem) {
-        M = m;
-        root = new TreeNode();
-        root->system = rootSystem;
-    }
+void findDownwardPaths(Service* node, int B,
+                       int pathIds[], int pathCosts[], int pathLen,
+                       int& pathCount) {
+    if (node == NULL) return;
 
-    // returns subtree size, sets balanced flag if any node fails
-    int subtreeSize(TreeNode* node, bool& balanced) const {
-        if (node == NULL) return 0;
+    pathIds[pathLen]   = node->id;
+    pathCosts[pathLen] = node->cost;
+    pathLen++;
 
-        vector<int> sizes;
-        for (int i = 0; i < (int)node->children.size(); i++)
-            sizes.push_back(subtreeSize(node->children[i], balanced));
-
-        if (!sizes.empty()) {
-            int mn = sizes[0], mx = sizes[0];
-            for (int i = 1; i < (int)sizes.size(); i++) {
-                if (sizes[i] < mn) mn = sizes[i];
-                if (sizes[i] > mx) mx = sizes[i];
+    int sum = 0;
+    for (int i = pathLen - 1; i >= 0; i--) {
+        sum += pathCosts[i];
+        if (sum == B) {
+            pathCount++;
+            cout << "  Path " << pathCount << ": ";
+            for (int j = i; j < pathLen; j++) {
+                cout << pathIds[j];
+                if (j < pathLen - 1) cout << " -> ";
             }
-            if (mx - mn > 1) balanced = false;
+            cout << "  (sum = " << B << ")\n";
         }
-
-        int total = 1;
-        for (int i = 0; i < (int)sizes.size(); i++)
-            total += sizes[i];
-
-        return total;
+        if (sum > B) break;
     }
 
-    TreeNode* findNode(TreeNode* node, StarSystem* s) const {
-        if (node == NULL) return NULL;
-        if (node->system == s) return node;
+    findDownwardPaths(node->left,  B, pathIds, pathCosts, pathLen, pathCount);
+    findDownwardPaths(node->right, B, pathIds, pathCosts, pathLen, pathCount);
 
-        for (int i = 0; i < (int)node->children.size(); i++) {
-            TreeNode* r = findNode(node->children[i], s);
-            if (r != NULL) return r;
+    pathLen--;
+}
+
+int nodeIds[100];
+int nodeCosts[100];
+int nodeCount = 0;
+
+void collectInOrder(Service* node) {
+    if (node == NULL) return;
+    collectInOrder(node->left);
+    nodeIds[nodeCount] = node->id;
+    nodeCosts[nodeCount] = node->cost;
+    nodeCount++;
+    collectInOrder(node->right);
+}
+
+void subsetSumBST(int index, int curSum, int B, bool chosen[], int& subCount) {
+    if (curSum == B) {
+        subCount++;
+        cout << "  Subset " << subCount << ": { ";
+        for (int i = 0; i < index; i++) {
+            if (chosen[i]) cout << nodeIds[i] << " ";
         }
-        return NULL;
+        cout << "}\n";
+        return;
     }
 
-    bool is_balanced(StarSystem* x) const {
-        TreeNode* found = findNode(root, x);
-        if (found == NULL) return true;
+    if (index >= nodeCount) return;
+    if (curSum > B) return;
 
-        bool balanced = true;
-        subtreeSize(found, balanced);
-        return balanced;
+    if (curSum + nodeCosts[index] > B) {
+        return;
     }
 
-    int countLeavesHelper(TreeNode* node) const {
-        if (node == NULL) return 0;
-        if (node->children.empty()) return 1;
+    chosen[index] = true;
+    subsetSumBST(index + 1, curSum + nodeCosts[index], B, chosen, subCount);
 
-        int total = 0;
-        for (int i = 0; i < (int)node->children.size(); i++)
-            total += countLeavesHelper(node->children[i]);
-
-        return total;
-    }
-
-    int count_leaves(StarSystem* x) const {
-        TreeNode* found = findNode(root, x);
-        if (found == NULL) return 0;
-        return countLeavesHelper(found);
-    }
-};
+    chosen[index] = false;
+    subsetSumBST(index + 1, curSum, B, chosen, subCount);
+}
 
 int main() {
-    Galaxy galaxy(3);   // up to 3 children per node
+    cout << "===== TASK 3: Cloud Budget & Audit Path Finder =====\n";
 
-    StarSystem* sun = new StarSystem(1, "Sol",   8,  0.0f, 0.0f, 0.0f, true);
-    StarSystem* a   = new StarSystem(2, "Alpha", 3,  1.0f, 0.5f, 0.0f, true);
-    StarSystem* b   = new StarSystem(3, "Beta",  5,  2.0f, 1.0f, 0.5f, false);
-    StarSystem* c   = new StarSystem(4, "Gamma", 2, -1.0f, 0.0f, 1.0f, true);
-    StarSystem* d   = new StarSystem(5, "Delta", 1,  3.0f, 2.0f, 0.0f, false);
+    Service* root = NULL;
+    root = insertBST(root, 1, 10);
+    root = insertBST(root, 2,  5);
+    root = insertBST(root, 3, 15);
+    root = insertBST(root, 4,  3);
+    root = insertBST(root, 5,  7);
+    root = insertBST(root, 6, 12);
+    root = insertBST(root, 7, 18);
+    root = insertBST(root, 8,  2);
 
-    Galaxy::TreeNode* rootNode = new Galaxy::TreeNode();
-    rootNode->system = sun;
-    galaxy.root = rootNode;
+    int B = 15;
 
-    Galaxy::TreeNode* n1 = new Galaxy::TreeNode();
-    n1->system = a;
-    Galaxy::TreeNode* n2 = new Galaxy::TreeNode();
-    n2->system = b;
-    Galaxy::TreeNode* n3 = new Galaxy::TreeNode();
-    n3->system = c;
-    Galaxy::TreeNode* n4 = new Galaxy::TreeNode();
-    n4->system = d;
+    cout << "\n-- Part A: Downward paths summing to " << B << " --\n";
+    int pathIds[100];
+    int pathCosts[100];
+    int pathCount = 0;
+    findDownwardPaths(root, B, pathIds, pathCosts, 0, pathCount);
+    if (pathCount == 0) cout << "  No downward paths found.\n";
 
-    rootNode->children.push_back(n1);
-    rootNode->children.push_back(n2);
-    rootNode->children.push_back(n3);
-    n1->children.push_back(n4);
+    cout << "\n-- Part B: BST subsets summing to " << B << " --\n";
+    nodeCount = 0;
+    collectInOrder(root);
+    cout << "  In-order node costs: ";
+    for (int i = 0; i < nodeCount; i++) cout << nodeCosts[i] << " ";
+    cout << "\n";
 
-    cout << "Galaxy root: " << sun->name << endl;
-    cout << "Total leaves: " << galaxy.count_leaves(sun) << endl;
-
-    if (galaxy.is_balanced(sun))
-        cout << "The galaxy tree is balanced." << endl;
-    else
-        cout << "The galaxy tree is NOT balanced." << endl;
+    bool chosen[100];
+    for (int i = 0; i < 100; i++) chosen[i] = false;
+    int subCount = 0;
+    subsetSumBST(0, 0, B, chosen, subCount);
+    if (subCount == 0) cout << "  No subsets found.\n";
 
     return 0;
 }

@@ -1,150 +1,172 @@
 #include <iostream>
-#include <vector>
 using namespace std;
 
-struct Node {
-    int data;
-    Node* left;
-    Node* right;
-
-    Node(int val) {
-        data = val;
-        left = NULL;
-        right = NULL;
-    }
+struct Container {
+    int id;
+    int weight;
+    Container* next;
 };
 
-class BST {
-public:
-    Node* root;
-
-    BST() { root = NULL; }
-
-    Node* insert(Node* node, int val) {
-        if (node == NULL) return new Node(val);
-
-        if (val < node->data)
-            node->left = insert(node->left, val);
-        else if (val > node->data)
-            node->right = insert(node->right, val);
-
-        return node;
-    }
-
-    void insert(int val) {
-        root = insert(root, val);
-    }
-
-    void inorder(Node* node) {
-        if (node == NULL) return;
-        inorder(node->left);
-        cout << node->data << " ";
-        inorder(node->right);
-    }
-
-    // largest value strictly smaller than key
-    int findPredecessor(int key) {
-        Node* curr = root;
-        int pred = -1;
-
-        while (curr != NULL) {
-            if (key > curr->data) {
-                pred = curr->data;
-                curr = curr->right;
-            } else {
-                curr = curr->left;
-            }
-        }
-        return pred;
-    }
-
-    // smallest value strictly greater than key
-    int findSuccessor(int key) {
-        Node* curr = root;
-        int succ = -1;
-
-        while (curr != NULL) {
-            if (key < curr->data) {
-                succ = curr->data;
-                curr = curr->left;
-            } else {
-                curr = curr->right;
-            }
-        }
-        return succ;
-    }
-
-    void rangeQueryRecursive(Node* node, int low, int high, int& comparisons) {
-        if (node == NULL) return;
-
-        comparisons++;
-
-        if (node->data > low)
-            rangeQueryRecursive(node->left, low, high, comparisons);
-
-        if (node->data >= low && node->data <= high)
-            cout << node->data << " ";
-
-        if (node->data < high)
-            rangeQueryRecursive(node->right, low, high, comparisons);
-    }
-
-    void rangeQueryIterative(int low, int high, int& comparisons) {
-        vector<Node*> stack;
-        Node* curr = root;
-
-        while (curr != NULL || !stack.empty()) {
-            while (curr != NULL) {
-                comparisons++;
-                if (curr->data > low)
-                    curr = curr->left;
-                else
-                    break;
-            }
-
-            if (curr == NULL) {
-                curr = stack.back();
-                stack.pop_back();
-            }
-
-            comparisons++;
-            if (curr->data >= low && curr->data <= high)
-                cout << curr->data << " ";
-
-            curr = curr->right;
-        }
-    }
+struct Truck {
+    int capacity;
+    Truck* next;
 };
+
+Container* buildContainerList(int ids[], int weights[], int n) {
+    Container* head = NULL;
+    Container* tail = NULL;
+    for (int i = 0; i < n; i++) {
+        Container* node = new Container;
+        node->id = ids[i];
+        node->weight = weights[i];
+        node->next = NULL;
+        if (head == NULL) {
+            head = tail = node;
+        } else {
+            tail->next = node;
+            tail = node;
+        }
+    }
+    return head;
+}
+
+Truck* buildTruckQueue(int caps[], int n) {
+    Truck* front = NULL;
+    Truck* rear = NULL;
+    for (int i = 0; i < n; i++) {
+        Truck* t = new Truck;
+        t->capacity = caps[i];
+        t->next = NULL;
+        if (front == NULL) {
+            front = rear = t;
+        } else {
+            rear->next = t;
+            rear = t;
+        }
+    }
+    return front;
+}
+
+int remainingListWeight(Container* node) {
+    int sum = 0;
+    while (node != NULL) {
+        sum += node->weight;
+        node = node->next;
+    }
+    return sum;
+}
+
+int remainingTruckCapacity(Truck* t) {
+    int sum = 0;
+    while (t != NULL) {
+        sum += t->capacity;
+        t = t->next;
+    }
+    return sum;
+}
+
+int assignment[100];
+int assignmentCount = 0;
+
+bool loadContainers(Container* curContainer, Truck* truckList,
+                    int usedTrucks, int truckLoads[], int truckCaps[]) {
+    if (curContainer == NULL) {
+        return true;
+    }
+
+    int remWeight = remainingListWeight(curContainer);
+    int remCap = remainingTruckCapacity(truckList);
+    if (remWeight > remCap) {
+        return false;
+    }
+
+    for (int i = 0; i < usedTrucks; i++) {
+        if (truckLoads[i] + curContainer->weight <= truckCaps[i]) {
+            truckLoads[i] += curContainer->weight;
+            assignment[assignmentCount++] = i;
+
+            if (loadContainers(curContainer->next, truckList,
+                               usedTrucks, truckLoads, truckCaps))
+                return true;
+
+            assignmentCount--;
+            truckLoads[i] -= curContainer->weight;
+        }
+    }
+
+    if (truckList != NULL) {
+        if (curContainer->weight <= truckList->capacity) {
+            int newIndex = usedTrucks;
+            truckLoads[newIndex] = curContainer->weight;
+            truckCaps[newIndex]  = truckList->capacity;
+            assignment[assignmentCount++] = newIndex;
+
+            if (loadContainers(curContainer->next, truckList->next,
+                               usedTrucks + 1, truckLoads, truckCaps))
+                return true;
+
+            assignmentCount--;
+            truckLoads[newIndex] = 0;
+        }
+    }
+
+    return false;
+}
 
 int main() {
-    int values[] = {50, 30, 70, 20, 40, 60, 80, 35, 45, 65, 85};
-    int n = sizeof(values) / sizeof(values[0]);
+    cout << "===== TASK 1: Freight Convoy Partitioning =====\n";
 
-    BST tree;
-    for (int i = 0; i < n; i++)
-        tree.insert(values[i]);
+    int ids[]     = {101, 102, 103, 104, 105, 106};
+    int weights[] = {10,  20,  15,  25,  5,   30};
+    int n = 6;
 
-    cout << "Inorder Traversal: ";
-    tree.inorder(tree.root);
-    cout << endl;
+    int caps[] = {40, 40, 40};
+    int m = 3;
 
-    int key = 40;
-    cout << "\nKey = " << key << endl;
-    cout << "Predecessor: " << tree.findPredecessor(key) << endl;
-    cout << "Successor:   " << tree.findSuccessor(key) << endl;
+    Container* head = buildContainerList(ids, weights, n);
+    Truck* queue = buildTruckQueue(caps, m);
 
-    int low = 30, high = 70;
-    cout << "\nRange Query [" << low << ", " << high << "]" << endl;
+    assignmentCount = 0;
 
-    int recComp = 0;
-    cout << "Recursive: ";
-    tree.rangeQueryRecursive(tree.root, low, high, recComp);
-    cout << "\nComparisons (recursive): " << recComp << endl;
+    int truckLoads[20];
+    int truckCaps[20];
+    for (int i = 0; i < 20; i++) { truckLoads[i] = 0; truckCaps[i] = 0; }
 
-    int iterComp = 0;
-    cout << "Iterative: ";
-    tree.rangeQueryIterative(low, high, iterComp);
-    cout << "\nComparisons (iterative): " << iterComp << endl;
+    int totalW = remainingListWeight(head);
+    int totalC = remainingTruckCapacity(queue);
+    cout << "Total container weight : " << totalW << "\n";
+    cout << "Total truck capacity   : " << totalC << "\n\n";
+
+    if (totalW > totalC) {
+        cout << "Insufficient truck capacity.\n";
+        return 0;
+    }
+
+    bool ok = loadContainers(head, queue, 0, truckLoads, truckCaps);
+
+    if (!ok) {
+        cout << "Insufficient truck capacity.\n";
+    } else {
+        cout << "Containers loaded successfully!\n";
+        Container* p = head;
+        int idx = 0;
+        int trucksUsed = 0;
+        for (int i = 0; i < assignmentCount; i++) {
+            if (assignment[i] + 1 > trucksUsed) trucksUsed = assignment[i] + 1;
+        }
+        for (int t = 0; t < trucksUsed; t++) {
+            cout << "  Truck " << (t + 1) << " (cap " << truckCaps[t] << "): ";
+            p = head;
+            idx = 0;
+            while (p != NULL) {
+                if (assignment[idx] == t)
+                    cout << "[" << p->id << " w=" << p->weight << "] ";
+                p = p->next;
+                idx++;
+            }
+            cout << " | load = " << truckLoads[t] << "\n";
+        }
+    }
 
     return 0;
 }
